@@ -1,120 +1,183 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const scoreEl = document.getElementById("score");
-const levelEl = document.getElementById("level");
-const startBtn = document.getElementById("start-btn");
-const startScreen = document.getElementById("start-screen");
-
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let score = 0;
-let level = 1;
-let gameActive = false;
-let enemySpeed = 0.3;
+// Game State
+let score = 0,
+    lives = 3,
+    level = 1,
+    gameActive = false;
+let superMeter = 0;
+const keys = {};
+let lastFireTime = 0;
+const fireRate = 250; // ms between shots
 
-// --- AUDIO (Same Procedural Engine) ---
+// Assets
+const shipImg = new Image();
+shipImg.src = "https://cdn-icons-png.flaticon.com/512/3063/3063738.png";
+const enemyImg = new Image();
+enemyImg.src = "https://cdn-icons-png.flaticon.com/512/5434/5434383.png";
+
+// --- AUDIO ENGINE (Fixed & Enhanced) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
 function playSound(freq, type, duration, vol = 0.1) {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        audioCtx.currentTime + duration
-    );
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            audioCtx.currentTime + duration
+        );
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch (e) {
+        console.log("Audio waiting for interaction");
+    }
 }
 
+// Special Victory Arpeggio
+function playVictorySound() {
+    const notes = [440, 554.37, 659.25, 880];
+    notes.forEach((f, i) => {
+        setTimeout(() => playSound(f, "sine", 0.4, 0.15), i * 150);
+    });
+}
+
+// Classes
 class Player {
     constructor() {
-        this.width = 50;
-        this.height = 30;
-        this.x = canvas.width / 2 - this.width / 2;
-        this.y = canvas.height - 100;
+        this.w = 60;
+        this.h = 60;
+        this.x = canvas.width / 2 - 30;
+        this.y = canvas.height - 120;
         this.speed = 10;
     }
     draw() {
-        ctx.fillStyle = "#00f3ff";
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = "#00f3ff";
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.fillRect(this.x + 20, this.y - 10, 10, 10); // Simple ship tip
+        ctx.drawImage(shipImg, this.x, this.y, this.w, this.h);
     }
 }
 
 class Projectile {
-    constructor(x, y) {
+    constructor(x, y, isSuper = false) {
         this.x = x;
         this.y = y;
-        this.radius = 3;
-        this.speed = 15;
+        this.w = isSuper ? 10 : 4;
+        this.h = 25;
+        this.color = isSuper ? "#ff00ff" : "#00f3ff";
+        this.isSuper = isSuper;
     }
     update() {
-        this.y -= this.speed;
-    }
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#ff00ff";
-        ctx.fill();
-    }
-}
-
-class Invader {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.width = 40;
-        this.height = 30;
-        this.color = color;
+        this.y -= 15;
     }
     draw() {
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = this.isSuper ? 25 : 8;
         ctx.shadowColor = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Enemy {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.w = 45;
+        this.h = 45;
+    }
+    draw() {
+        ctx.drawImage(enemyImg, this.x, this.y, this.w, this.h);
     }
     update() {
-        this.y += enemySpeed;
+        this.y += 0.35 + level * 0.12;
     }
 }
 
 const player = new Player();
-let projectiles = [];
-let invaders = [];
-const keys = {};
+let enemies = [],
+    projectiles = [];
 
-// CENTERED SPAWNING LOGIC
-function spawnInvaders() {
-    const cols = Math.min(10, Math.floor(canvas.width / 70));
-    const rows = 4;
-    const spacing = 60;
-    const gridWidth = (cols - 1) * spacing + 40;
-    const startX = (canvas.width - gridWidth) / 2; // Perfectly Centered
+// REBALANCED ENEMIES (More count, better density)
+function spawnEnemies() {
+    enemies = [];
+    const centerX = canvas.width / 2;
+    const rows = 3;
+    const cols = 6; // Increased enemies
+    const spacingX = 80;
+    const spacingY = 70;
+    const totalWidth = (cols - 1) * spacingX;
 
-    for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-            const color = `hsl(${180 + row * 30}, 80%, 60%)`;
-            invaders.push(
-                new Invader(startX + col * spacing, row * 50 + 80, color)
-            );
-        }
+    switch (level % 3) {
+        case 1: // Dense Block
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    enemies.push(
+                        new Enemy(
+                            centerX - totalWidth / 2 + c * spacingX,
+                            r * spacingY + 100
+                        )
+                    );
+                }
+            }
+            break;
+        case 2: // Double V-Shape
+            for (let i = 0; i < cols; i++) {
+                enemies.push(
+                    new Enemy(
+                        centerX - totalWidth / 2 + i * spacingX,
+                        100 + Math.abs(2.5 - i) * 60
+                    )
+                );
+                enemies.push(
+                    new Enemy(
+                        centerX - totalWidth / 2 + i * spacingX,
+                        220 + Math.abs(2.5 - i) * 60
+                    )
+                );
+            }
+            break;
+        default: // Wide Wing
+            for (let r = 0; r < 2; r++) {
+                for (let c = 0; c < cols + 2; c++) {
+                    if (c < 3 || c > 4)
+                        enemies.push(
+                            new Enemy(
+                                centerX - 350 + c * 90,
+                                r * spacingY + 100
+                            )
+                        );
+                }
+            }
     }
+    document.getElementById("level-text").innerText = `SECTOR ${
+        level < 10 ? "0" + level : level
+    }`;
 }
 
-function nextLevel() {
-    level++;
-    levelEl.innerText = level;
-    enemySpeed += 0.2; // Increase speed every level
-    projectiles = [];
-    playSound(600, "sine", 0.5, 0.2);
-    spawnInvaders();
+function handleFire() {
+    const now = Date.now();
+    if (now - lastFireTime < fireRate) return;
+
+    if (superMeter >= 100) {
+        // SUPERPOWER: Triple Blast + Sound
+        projectiles.push(new Projectile(player.x + 28, player.y, true));
+        projectiles.push(new Projectile(player.x + 0, player.y + 20, true));
+        projectiles.push(new Projectile(player.x + 56, player.y + 20, true));
+        playSound(220, "square", 0.4, 0.2);
+        superMeter = 0;
+        document.getElementById("power-bar").style.width = "0%";
+    } else {
+        projectiles.push(new Projectile(player.x + 28, player.y));
+        playSound(600, "sine", 0.1, 0.1);
+    }
+    lastFireTime = now;
 }
 
 function animate() {
@@ -122,10 +185,13 @@ function animate() {
     requestAnimationFrame(animate);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    player.draw();
+    // SIMULTANEOUS INPUT HANDLING
     if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
-    if (keys["ArrowRight"] && player.x < canvas.width - player.width)
+    if (keys["ArrowRight"] && player.x < canvas.width - player.w)
         player.x += player.speed;
+    if (keys[" "] || keys["Space"]) handleFire();
+
+    player.draw();
 
     projectiles.forEach((p, pi) => {
         p.update();
@@ -133,62 +199,64 @@ function animate() {
         if (p.y < 0) projectiles.splice(pi, 1);
     });
 
-    invaders.forEach((invader, i) => {
-        invader.update();
-        invader.draw();
+    enemies.forEach((en, ei) => {
+        en.update();
+        en.draw();
 
-        // Collision Check (Accurate)
-        projectiles.forEach((proj, pi) => {
+        projectiles.forEach((p, pi) => {
             if (
-                proj.x > invader.x &&
-                proj.x < invader.x + invader.width &&
-                proj.y > invader.y &&
-                proj.y < invader.y + invader.height
+                p.x > en.x &&
+                p.x < en.x + en.w &&
+                p.y < en.y + en.h &&
+                p.y > en.y
             ) {
-                playSound(150, "square", 0.1);
-                invaders.splice(i, 1);
-                projectiles.splice(pi, 1);
-                score += 10;
-                scoreEl.innerText = score;
+                enemies.splice(ei, 1);
+                if (!p.isSuper) projectiles.splice(pi, 1);
+                score += 100;
+                superMeter = Math.min(100, superMeter + 8);
+                document.getElementById("score").innerText = score;
+                document.getElementById("power-bar").style.width =
+                    superMeter + "%";
+                playSound(150, "square", 0.1, 0.05);
             }
         });
 
-        // Game Over Condition
-        if (invader.y + invader.height > player.y) {
-            gameActive = false;
-            document.getElementById("game-over").classList.remove("hidden");
-            document.getElementById("final-score").innerText = score;
-        }
+        if (en.y + en.h > player.y) handleDeath();
     });
 
-    // Check for Level Clear
-    if (invaders.length === 0) {
-        nextLevel();
+    if (enemies.length === 0) {
+        level++;
+        playVictorySound();
+        spawnEnemies();
     }
 }
 
-// Controls
+function handleDeath() {
+    lives--;
+    playSound(100, "sawtooth", 0.5, 0.2);
+    document.getElementById("lives").innerText = "❤️".repeat(lives);
+    if (lives <= 0) {
+        gameActive = false;
+        document.getElementById("game-over").classList.remove("hidden");
+        document.getElementById("final-score").innerText = score;
+    } else {
+        spawnEnemies();
+    }
+}
+
+// Event Listeners (KeyMap pattern fixes the firing bug)
 window.addEventListener("keydown", (e) => {
     keys[e.key] = true;
-    if (e.code === "Space" && gameActive) {
-        projectiles.push(new Projectile(player.x + player.width / 2, player.y));
-        playSound(440, "sine", 0.05);
-    }
+    if (e.key === " ") e.preventDefault(); // Stop page from scrolling
 });
-window.addEventListener("keyup", (e) => (keys[e.key] = false));
+window.addEventListener("keyup", (e) => {
+    keys[e.key] = false;
+});
 
-// Start
-startBtn.addEventListener("click", () => {
+document.getElementById("start-btn").addEventListener("click", () => {
     if (audioCtx.state === "suspended") audioCtx.resume();
-    startScreen.classList.add("hidden");
+    document.getElementById("start-screen").classList.add("hidden");
     gameActive = true;
-    spawnInvaders();
+    spawnEnemies();
     animate();
-});
-
-// Resize Support
-window.addEventListener("resize", () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    player.x = canvas.width / 2 - player.width / 2;
 });
