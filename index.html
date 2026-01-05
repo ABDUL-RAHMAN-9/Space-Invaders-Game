@@ -4,18 +4,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON-VOID | Deep Space 2026</title>
     <link rel="stylesheet" href="style.css">
-    <title>Space Invaders|20-Feb-25</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div class="game_container">
-        <img class="headingImg" src="assets/heading.png" alt="spaceHeading">
+    <div id="ui-layer">
+        <div class="hud">
+            <div class="stat">SCORE: <span id="score">0000</span></div>
+            <div class="stat">LEVEL: <span id="level">1</span></div>
+            <div class="stat" id="lives">LIVES: ❤️❤️❤️</div>
+        </div>
 
-        <h1 class="results">0</h1>
-        <div class="grid"></div>
-        
+        <div id="start-screen" class="modal">
+            <h1 class="glitch">NEON VOID</h1>
+            <p>COMMANDER: DEFEND THE SECTOR</p>
+            <button id="start-btn">INITIALIZE CORE</button>
+            <div class="controls">ARROWS to move • SPACE to fire</div>
+        </div>
+
+        <div id="game-over" class="modal hidden">
+            <h1 class="dead">MISSION FAILED</h1>
+            <p>FINAL SCORE: <span id="final-score">0</span></p>
+            <button onclick="location.reload()">RE-REDEPLOY</button>
+        </div>
     </div>
+
+    <canvas id="gameCanvas"></canvas>
+
     <script src="app.js"></script>
 </body>
 
