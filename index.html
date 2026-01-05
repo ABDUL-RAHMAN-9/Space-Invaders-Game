@@ -14,6 +14,11 @@
         <canvas id="starCanvas"></canvas>
         <canvas id="gameCanvas"></canvas>
 
+        <!-- Top Left UI (Back Button) -->
+        <div id="top-left-ui" class="hidden">
+            <button id="back-to-home" class="back-btn">&lt; HOME</button>
+        </div>
+
         <!-- Top Right Icons -->
         <div id="top-ui">
             <span id="sound-toggle" class="ui-icon">🔊</span>
@@ -23,7 +28,7 @@
         <!-- Start Screen -->
         <div id="start-screen" class="screen">
             <div class="alien-row">
-                <img src="assets/invader.png" class="pixel-icon">
+                <img src="assets/invader1.png" class="pixel-icon">
                 <img src="assets/invader2.png" class="pixel-icon">
                 <img src="assets/invader3.png" class="pixel-icon">
             </div>
@@ -33,20 +38,20 @@
             <button id="play-btn" class="pixel-btn">PLAY</button>
         </div>
 
-        <!-- Tutorial Modal (The Question Mark Content) -->
+        <!-- Tutorial Modal -->
         <div id="tutorial-modal" class="modal hidden">
             <div class="modal-content">
                 <h2 class="tut-header">PILOT MANUAL</h2>
                 <div class="tut-grid">
                     <div class="tut-option">
-                        <h3>Option 1</h3>
+                        <h3>KEYBOARD</h3>
                         <p>ARROWS / A-D: Move</p>
-                        <p>SPACEBAR: Shoot</p>
+                        <p>SPACE: Shoot</p>
                     </div>
                     <div class="tut-option">
-                        <h3>Option 2</h3>
-                        <p>CLICK & DRAG: Move</p>
-                        <p>SPACEBAR: Shoot</p>
+                        <h3>TOUCH/MOUSE</h3>
+                        <p>DRAG: Move</p>
+                        <p>AUTO-FIRE enabled</p>
                     </div>
                 </div>
                 <button id="close-tut" class="pixel-btn">GOT IT</button>
