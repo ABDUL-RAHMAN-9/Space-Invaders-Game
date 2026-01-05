@@ -4,64 +4,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SPACE ALIEN INVADERS | 2026</title>
+    <title>SPACE ALIEN INVADERS | FINAL</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div id="game-container">
-        <!-- Main Background Layer -->
-        <div id="star-bg"></div>
-
-        <!-- 1. ENTRANCE SCREEN -->
-        <div id="start-screen" class="screen">
-            <div class="alien-icons">👾 🛸 👾</div>
-            <h1 class="title-top">SPACE ALIEN</h1>
-            <h1 class="title-bottom">INVADERS</h1>
-            <p class="hi-score-text">High Score: <span class="hs-val">0</span></p>
-            <button id="play-btn" class="retro-btn">PLAY</button>
-        </div>
-
-        <!-- 2. TUTORIAL SCREEN (Appears when clicking ?) -->
-        <div id="tutorial-screen" class="screen hidden">
-            <div class="back-arrow" onclick="showScreen('start-screen')">⬅</div>
-            <h1 class="tutorial-title">TUTORIAL</h1>
-            <div class="tutorial-content">
-                <div class="t-section">
-                    <h3>Option 1</h3>
-                    <p>Arrow keys or [A-D] to move. Spacebar to shoot.</p>
-                </div>
-                <div class="t-section">
-                    <h3>Option 2</h3>
-                    <p>Click and Drag to move. Spacebar to shoot.</p>
-                </div>
-                <div class="tutorial-ship">🚀</div>
-            </div>
-        </div>
-
-        <!-- 3. GAME HUD -->
-        <div id="game-hud" class="hidden">
-            <div class="hud-left">LIVES: <span id="heart-container"></span></div>
-            <div class="hud-center">SCORE: <span id="current-score">0</span></div>
-            <div class="hud-right">
-                <span id="sound-toggle" class="icon">🔊</span>
-                <span id="tutorial-icon" class="icon">?</span>
-                <span id="home-icon" class="icon">🏠</span>
-            </div>
-        </div>
-
+        <canvas id="starCanvas"></canvas>
         <canvas id="gameCanvas"></canvas>
 
-        <!-- 4. GAME OVER SCREEN -->
+        <!-- Top Right Icons -->
+        <div id="top-ui">
+            <span id="sound-toggle" class="ui-icon">🔊</span>
+            <span id="tutorial-icon" class="ui-icon">?</span>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen">
+            <div class="alien-row">
+                <img src="assets/invader.png" class="pixel-icon">
+                <img src="assets/invader2.png" class="pixel-icon">
+                <img src="assets/invader3.png" class="pixel-icon">
+            </div>
+            <h1 class="title-main">SPACE ALIEN</h1>
+            <h1 class="title-sub">INVADERS</h1>
+            <p class="hi-score">High Score: <span id="hs-val">0</span></p>
+            <button id="play-btn" class="pixel-btn">PLAY</button>
+        </div>
+
+        <!-- Tutorial Modal (The Question Mark Content) -->
+        <div id="tutorial-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 class="tut-header">PILOT MANUAL</h2>
+                <div class="tut-grid">
+                    <div class="tut-option">
+                        <h3>Option 1</h3>
+                        <p>ARROWS / A-D: Move</p>
+                        <p>SPACEBAR: Shoot</p>
+                    </div>
+                    <div class="tut-option">
+                        <h3>Option 2</h3>
+                        <p>CLICK & DRAG: Move</p>
+                        <p>SPACEBAR: Shoot</p>
+                    </div>
+                </div>
+                <button id="close-tut" class="pixel-btn">GOT IT</button>
+            </div>
+        </div>
+
+        <div id="game-hud" class="hidden">
+            <div class="hud-item">Lives: <span id="heart-container"></span></div>
+            <div class="hud-item">Score: <span id="current-score">0</span></div>
+        </div>
+
         <div id="game-over-screen" class="screen hidden">
             <h1 class="game-over-text">GAME OVER</h1>
-            <p>Score: <span id="score-final">0</span></p>
-            <p>High Score: <span class="hs-val">0</span></p>
-            <div class="button-group">
-                <button onclick="location.reload()" class="retro-btn">HOME</button>
-                <button id="restart-btn" class="retro-btn">RESTART</button>
-            </div>
+            <p>Score: <span id="final-score">0</span></p>
+            <button onclick="location.reload()" class="pixel-btn">RESTART</button>
         </div>
     </div>
     <script src="app.js"></script>

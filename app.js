@@ -1,235 +1,213 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+const starCanvas = document.getElementById("starCanvas");
+const sCtx = starCanvas.getContext("2d");
+const gameCanvas = document.getElementById("gameCanvas");
+const ctx = gameCanvas.getContext("2d");
 
-// --- ASSET CONFIGURATION (Change images/sounds here) ---
-const IMAGES = {
-    ship: "https://cdn-icons-png.flaticon.com/512/3063/3063738.png",
-    enemy1: "https://cdn-icons-png.flaticon.com/512/5434/5434383.png", // Cyan
-    enemy2: "https://cdn-icons-png.flaticon.com/512/10312/10312015.png", // Red
-};
+// --- CONFIGURATION ---
+const COMBAT_WIDTH = 800;
+let isMuted = false;
+let gameRunning = false;
+
+// Assets
+const shipImg = new Image(); shipImg.src = "assets/spaceship2.png";
+const inv1 = new Image(); inv1.src = "assets/invader1.png";
+const inv2 = new Image(); inv2.src = "assets/invader2.png";
+const inv3 = new Image(); inv3.src = "assets/invader3.png";
 
 // --- AUDIO ENGINE ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let isMuted = false;
-
-function playSound(freq, type, duration, vol = 0.1) {
+function playSound(freq, type, duration, vol, drop = false) {
     if (isMuted) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        audioCtx.currentTime + duration
-    );
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    try {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        if (drop) o.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + duration);
+        o.connect(g); g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(vol, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        o.start(); o.stop(audioCtx.currentTime + duration);
+    } catch(e) {}
 }
 
-// --- GAME STATE ---
-let score = 0,
-    lives = 3,
-    level = 1,
-    gameRunning = false;
-let player = { x: 0, y: 0, w: 50, h: 50 };
-let enemies = [],
-    projectiles = [],
-    enemyProjectiles = [];
-let enemyDirection = 1,
-    enemyStepTimer = 0;
+// --- FULL SCREEN STARS ---
+const stars = [];
+function initStars() {
+    starCanvas.width = window.innerWidth;
+    starCanvas.height = window.innerHeight;
+    for (let i = 0; i < 200; i++) {
+        stars.push({ x: Math.random() * starCanvas.width, y: Math.random() * starCanvas.height, size: Math.random() * 2 + 1, speed: Math.random() * 1 + 0.5 });
+    }
+}
+function drawStars() {
+    sCtx.fillStyle = "#020205";
+    sCtx.fillRect(0, 0, starCanvas.width, starCanvas.height);
+    sCtx.fillStyle = "white";
+    stars.forEach(s => {
+        s.x += s.speed * 0.5; s.y += s.speed;
+        if (s.y > starCanvas.height) { s.y = -5; s.x = Math.random() * starCanvas.width; }
+        sCtx.fillRect(s.x, s.y, s.size, s.size);
+    });
+    requestAnimationFrame(drawStars);
+}
+
+// --- GAME LOGIC ---
+let score = 0, lives = 3, level = 1;
+let player = { x: COMBAT_WIDTH / 2 - 25, y: 0, w: 50, h: 50, isDragging: false };
+let enemies = [], projectiles = [], enemyProjectiles = [];
+let enemyDir = 1, enemyTimer = 0, lastFire = 0;
 const keys = {};
 
-// --- INITIALIZATION ---
-function init() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    player.x = canvas.width / 2 - 25;
-    player.y = canvas.height - 100;
+function initGame() {
+    gameCanvas.width = COMBAT_WIDTH;
+    gameCanvas.height = window.innerHeight;
+    player.y = gameCanvas.height - 100;
+    spawnEnemies();
+    document.getElementById("hs-val").innerText = localStorage.getItem("hiScore") || 0;
 }
-window.addEventListener("resize", init);
-init();
 
 function spawnEnemies() {
     enemies = [];
-    const rows = 4,
-        cols = 8;
-    const spacing = 70;
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-            enemies.push({
-                x: c * spacing + 100,
-                y: r * spacing + 100,
-                w: 40,
-                h: 40,
-                color: r < 2 ? "#ff5555" : "#55ffff",
-            });
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 9; c++) {
+            enemies.push({ x: c * 70 + 80, y: r * 60 + 100, w: 40, h: 40, type: r === 0 ? inv3 : (r < 3 ? inv2 : inv1) });
         }
     }
 }
 
-// --- CORE LOGIC ---
 function update() {
     if (!gameRunning) return;
 
-    // 1. Spaceship Movement
+    // KEYBOARD MOVEMENT
     if ((keys["ArrowLeft"] || keys["KeyA"]) && player.x > 0) player.x -= 8;
-    if (
-        (keys["ArrowRight"] || keys["KeyD"]) &&
-        player.x < canvas.width - player.w
-    )
-        player.x += 8;
-
-    // 2. Enemy Movement (Step logic)
-    enemyStepTimer++;
-    if (enemyStepTimer > Math.max(10, 40 - level * 5)) {
-        let touchedEdge = false;
-        enemies.forEach((en) => {
-            en.x += 15 * enemyDirection;
-            if (en.x + en.w > canvas.width || en.x < 0) touchedEdge = true;
-        });
-
-        if (touchedEdge) {
-            enemyDirection *= -1;
-            enemies.forEach((en) => (en.y += 30));
-            playSound(100, "square", 0.2, 0.05); // Step sound
-        }
-        enemyStepTimer = 0;
+    if ((keys["ArrowRight"] || keys["KeyD"]) && player.x < COMBAT_WIDTH - player.w) player.x += 8;
+    
+    // FIRING (With Cooldown)
+    if ((keys["Space"] || keys["ArrowUp"]) && Date.now() - lastFire > 250) {
+        fireProjectile();
+        lastFire = Date.now();
     }
 
-    // 3. Projectiles
+    // ENEMY AI
+    enemyTimer++;
+    if (enemyTimer > Math.max(5, 40 - level * 5)) {
+        let hitWall = false;
+        enemies.forEach(en => {
+            en.x += 15 * enemyDir;
+            if (en.x + en.w > COMBAT_WIDTH || en.x < 0) hitWall = true;
+        });
+        if (hitWall) {
+            enemyDir *= -1;
+            enemies.forEach(en => en.y += 25);
+            playSound(100, 'square', 0.1, 0.02);
+        }
+        enemyTimer = 0;
+    }
+
+    // COLLISION DETECTION
     projectiles.forEach((p, i) => {
         p.y -= 12;
         if (p.y < 0) projectiles.splice(i, 1);
-
         enemies.forEach((en, ei) => {
-            if (
-                p.x > en.x &&
-                p.x < en.x + en.w &&
-                p.y > en.y &&
-                p.y < en.y + en.h
-            ) {
+            if (p.x > en.x && p.x < en.x + en.w && p.y > en.y && p.y < en.y + en.h) {
                 enemies.splice(ei, 1);
                 projectiles.splice(i, 1);
                 score += 100;
                 document.getElementById("current-score").innerText = score;
-                playSound(200, "square", 0.1); // Hit sound
-                if (enemies.length === 0) {
-                    level++;
-                    spawnEnemies();
-                    playSound(600, "sine", 0.5);
-                }
+                playSound(200, 'square', 0.1, 0.05);
+                if (enemies.length === 0) { level++; spawnEnemies(); playSound(600, 'sine', 0.4, 0.1); }
             }
         });
     });
 
-    // 4. Enemy Shooting
     if (Math.random() < 0.01 + level * 0.005) {
         const en = enemies[Math.floor(Math.random() * enemies.length)];
-        if (en) enemyProjectiles.push({ x: en.x + en.w / 2, y: en.y + en.h });
+        if (en) enemyProjectiles.push({ x: en.x + 20, y: en.y + 40 });
     }
 
     enemyProjectiles.forEach((p, i) => {
-        p.y += 5;
-        if (p.y > canvas.height) enemyProjectiles.splice(i, 1);
-        if (
-            p.x > player.x &&
-            p.x < player.x + player.w &&
-            p.y > player.y &&
-            p.y < player.y + player.h
-        ) {
+        p.y += 6;
+        if (p.y > gameCanvas.height) enemyProjectiles.splice(i, 1);
+        if (p.x > player.x && p.x < player.x + player.w && p.y > player.y && p.y < player.y + player.h) {
             enemyProjectiles.splice(i, 1);
-            lives--;
-            updateHUD();
-            playSound(50, "sawtooth", 0.5); // Damage sound
-            if (lives <= 0) endGame();
+            lives--; updateHUD();
+            playSound(60, 'sawtooth', 0.5, 0.2);
+            if (lives <= 0) gameOver();
         }
     });
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Player
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(player.x, player.y + 10, player.w, player.h - 10);
-    ctx.fillRect(player.x + 20, player.y, 10, 10); // Tip
-
-    // Enemies
-    enemies.forEach((en) => {
-        ctx.fillStyle = en.color;
-        ctx.fillRect(en.x, en.y, en.w, en.h);
-    });
-
-    // Projectiles
-    ctx.fillStyle = "#fff";
-    projectiles.forEach((p) => ctx.fillRect(p.x, p.y, 4, 15));
+    ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+    ctx.drawImage(shipImg, player.x, player.y, player.w, player.h);
+    enemies.forEach(en => ctx.drawImage(en.type, en.x, en.y, en.w, en.h));
+    
+    ctx.fillStyle = "#00f3ff";
+    projectiles.forEach(p => { ctx.shadowBlur = 10; ctx.shadowColor = "#00f3ff"; ctx.fillRect(p.x, p.y, 4, 15); });
+    ctx.shadowBlur = 0;
+    
     ctx.fillStyle = "#ff5555";
-    enemyProjectiles.forEach((p) => ctx.fillRect(p.x, p.y, 4, 15));
+    enemyProjectiles.forEach(p => ctx.fillRect(p.x, p.y, 4, 15));
 
-    if (gameRunning)
-        requestAnimationFrame(() => {
-            update();
-            draw();
-        });
+    if (gameRunning) requestAnimationFrame(() => { update(); draw(); });
 }
 
-// --- UTILS & NAVIGATION ---
-function showScreen(id) {
-    document
-        .querySelectorAll(".screen")
-        .forEach((s) => s.classList.add("hidden"));
-    document.getElementById(id).classList.remove("hidden");
+function fireProjectile() {
+    projectiles.push({ x: player.x + player.w / 2 - 2, y: player.y });
+    playSound(800, 'sine', 0.1, 0.05, true);
 }
 
-function updateHUD() {
-    document.getElementById("heart-container").innerText = "❤️".repeat(lives);
-}
-
-function endGame() {
+function gameOver() {
     gameRunning = false;
-    showScreen("game-over-screen");
-    document.getElementById("score-final").innerText = score;
+    document.getElementById("game-over-screen").classList.remove("hidden");
+    document.getElementById("final-score").innerText = score;
     const hi = localStorage.getItem("hiScore") || 0;
     if (score > hi) localStorage.setItem("hiScore", score);
-    document
-        .querySelectorAll(".hs-val")
-        .forEach((el) => (el.innerText = localStorage.getItem("hiScore")));
 }
 
+function updateHUD() { document.getElementById("heart-container").innerText = "❤️".repeat(lives); }
+
 // --- LISTENERS ---
-window.addEventListener("keydown", (e) => {
-    keys[e.code] = true;
-    if (e.code === "Space" && gameRunning) {
-        if (projectiles.length < 3) {
-            projectiles.push({ x: player.x + 23, y: player.y });
-            playSound(800, "sine", 0.1, 0.05); // Shoot sound
-        }
+window.addEventListener("keydown", e => { keys[e.code] = true; });
+window.addEventListener("keyup", e => { keys[e.code] = false; });
+
+// Mouse/Touch Drag Control
+gameCanvas.addEventListener('mousedown', () => player.isDragging = true);
+window.addEventListener('mouseup', () => player.isDragging = false);
+window.addEventListener('mousemove', (e) => {
+    if (player.isDragging && gameRunning) {
+        const rect = gameCanvas.getBoundingClientRect();
+        player.x = (e.clientX - rect.left) - player.w / 2;
     }
 });
-window.addEventListener("keyup", (e) => (keys[e.code] = false));
 
 document.getElementById("play-btn").onclick = () => {
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    showScreen("start-screen"); // Hide all
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     document.getElementById("start-screen").classList.add("hidden");
     document.getElementById("game-hud").classList.remove("hidden");
     gameRunning = true;
-    spawnEnemies();
     updateHUD();
     draw();
 };
 
+document.getElementById("sound-toggle").onclick = function() {
+    isMuted = !isMuted;
+    this.innerText = isMuted ? "🔇" : "🔊";
+};
+
 document.getElementById("tutorial-icon").onclick = () => {
     gameRunning = false;
-    showScreen("tutorial-screen");
+    document.getElementById("tutorial-modal").classList.remove("hidden");
 };
 
-document.getElementById("home-icon").onclick = () => location.reload();
-
-document.getElementById("sound-toggle").onclick = (e) => {
-    isMuted = !isMuted;
-    e.target.innerText = isMuted ? "🔇" : "🔊";
+document.getElementById("close-tut").onclick = () => {
+    document.getElementById("tutorial-modal").classList.add("hidden");
+    if(!document.getElementById("game-hud").classList.contains("hidden")) gameRunning = true;
 };
+
+window.addEventListener("resize", () => { initStars(); initGame(); });
+
+initStars();
+drawStars();
+initGame();
