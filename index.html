@@ -4,35 +4,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEON-VOID | Deep Space 2026</title>
+    <title>SPACE INVADERS | 2026</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+    <!-- Clean Modern Sci-Fi Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,300;0,700;1,900&display=swap"
+        rel="stylesheet">
 </head>
 
 <body>
     <div id="ui-layer">
         <div class="hud">
-            <div class="stat">SCORE: <span id="score">0000</span></div>
+            <div class="stat">SCORE: <span id="score">0</span></div>
             <div class="stat">LEVEL: <span id="level">1</span></div>
-            <div class="stat" id="lives">LIVES: ❤️❤️❤️</div>
+            <div id="lives" class="stat">❤️❤️❤️</div>
         </div>
 
         <div id="start-screen" class="modal">
-            <h1 class="glitch">NEON VOID</h1>
-            <p>COMMANDER: DEFEND THE SECTOR</p>
-            <button id="start-btn">INITIALIZE CORE</button>
-            <div class="controls">ARROWS to move • SPACE to fire</div>
+            <h1>SPACE INVADERS</h1>
+            <p>HIGH-SPEED INTERCEPTOR INITIALIZED</p>
+            <button id="start-btn">START MISSION</button>
+            <div class="controls">ARROWS to Move • SPACE to Fire</div>
         </div>
 
         <div id="game-over" class="modal hidden">
-            <h1 class="dead">MISSION FAILED</h1>
-            <p>FINAL SCORE: <span id="final-score">0</span></p>
-            <button onclick="location.reload()">RE-REDEPLOY</button>
+            <h1 class="dead">SYSTEM FAILURE</h1>
+            <p>SCORE ACHIEVED: <span id="final-score">0</span></p>
+            <button onclick="location.reload()">REBOOT SYSTEM</button>
         </div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
-
     <script src="app.js"></script>
 </body>
 
